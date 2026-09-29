@@ -22,6 +22,25 @@ const SHORT = {
   secrecy_isolation: "SECRECY",
 };
 
+const DESCRIPTIONS = {
+  unusual_payment: "asks you to pay in a strange way (gift cards, wire, crypto)",
+  sensitive_info: "asks for private details (codes, passwords, account numbers)",
+  remote_access: "wants control of your device or accounts",
+  threat_consequence: "scares you with consequences",
+  authority_claim: "claims to be an official body or trusted company",
+  urgency_pressure: "pressures you to act right now",
+  secrecy_isolation: "tells you not to tell anyone",
+};
+
+const SCENARIO_SHORT = {
+  "Tech-support scam": "tech",
+  "Bank-imposter scam": "bank",
+  "Legitimate bank call": "legit",
+  "Borderline sales call": "sales",
+  "Innocuous neighbor call": "neighbor",
+  Custom: "custom",
+};
+
 // Must match the weights in src/server.js.
 const WEIGHTS = {
   unusual_payment: 0.22,
@@ -35,6 +54,7 @@ const WEIGHTS = {
 
 const NEUTRALS = ["#0a0a0a", "#3a3a38", "#6b6b6b", "#9a9a96", "#c0c0bc", "#d8d8d2", "#e6e6e3"];
 const SPEEDS = [0.5, 1, 2, 4];
+const WATCH = 0.3;
 
 const els = {
   scenarioList: document.getElementById("scenario-list"),
@@ -59,15 +79,18 @@ const els = {
   lcdScore: document.getElementById("lcd-score"),
   bandWord: document.getElementById("band-word"),
   alertReadout: document.getElementById("alert-readout"),
+  comparisonAxis: document.getElementById("comparison-axis"),
   stamp: document.getElementById("stamp"),
   riskValue: document.getElementById("risk-value"),
   verdictValue: document.getElementById("verdict-value"),
-  gap: document.getElementById("gap"),
   timeline: document.getElementById("timeline"),
   sortToggle: document.getElementById("sort-toggle"),
   viewToggle: document.getElementById("view-toggle"),
+  signalCount: document.getElementById("signal-count"),
+  signalSub: document.getElementById("signal-sub"),
   meters: document.getElementById("meters"),
   heatmap: document.getElementById("heatmap"),
+  contribLabel: document.getElementById("contrib-label"),
   contribSegments: document.getElementById("contrib-segments"),
   contribLegend: document.getElementById("contrib-legend"),
   errorBanner: document.getElementById("error-banner"),
@@ -86,7 +109,7 @@ const state = {
   timer: null,
   speed: 1,
   gen: 0,
-  sort: false,
+  sort: true,
   view: "meters",
   flashTurn: null,
   results: {},
@@ -100,8 +123,7 @@ const pad = (n, w = 2) => String(n).padStart(w, "0");
 const pct = (v) => `${Math.round(v * 100)}%`;
 const snap = (k) => state.history[k] || snapshot0();
 const curSnap = () => snap(state.current);
-const bandOf = (r) => (r >= 0.7 ? "alert" : r >= 0.3 ? "watch" : "clear");
-const verdictLabel = (v) => (v >= 0.7 ? "SCAM" : v >= 0.3 ? "SUSPECT" : "CLEAR");
+const bandOf = (r) => (r >= 0.7 ? "alert" : r >= WATCH ? "watch" : "clear");
 const reveal = () => (state.completed ? state.lines.length : state.current);
 
 function alertTurn() {
@@ -110,6 +132,24 @@ function alertTurn() {
     if (h && h.riskScore >= 0.7) return k;
   }
   return 0;
+}
+
+function evidenceFor(key) {
+  let bestK = 0;
+  let bestD = 0;
+  for (let k = 1; k <= reveal(); k++) {
+    const h = state.history[k];
+    if (!h) continue;
+    const d = h.signals[key] - snap(k - 1).signals[key];
+    if (d > bestD) {
+      bestD = d;
+      bestK = k;
+    }
+  }
+  if (bestK > 0 && bestD >= 0.1) {
+    return { text: state.lines[bestK - 1].text, turn: bestK };
+  }
+  return null;
 }
 
 function lerpColor(a, b, t) {
@@ -145,7 +185,6 @@ function resetForLoad() {
   state.current = 0;
   state.completed = false;
   state.flashTurn = null;
-  state.sort = false;
   state.history = new Array(state.lines.length + 1).fill(null);
   state.history[0] = snapshot0();
   render();
@@ -339,6 +378,7 @@ function render() {
   renderMinimap();
   renderTranscript();
   renderScore();
+  renderComparison();
   renderTimeline();
   renderMeters();
   renderContribution();
@@ -462,11 +502,24 @@ function renderTranscript() {
         if (d >= 0.15) deltas.push([key, d]);
       }
       deltas.sort((a, b) => b[1] - a[1]);
-      for (const [key, d] of deltas.slice(0, 3)) {
+      for (const [key, d] of deltas.slice(0, 2)) {
         const c = document.createElement("span");
         c.className = "chip";
         c.textContent = `${SHORT[key]} +${Math.round(d * 100)}`;
+        c.title = DESCRIPTIONS[key];
+        c.tabIndex = 0;
         chips.appendChild(c);
+      }
+      if (deltas.length > 2) {
+        const more = document.createElement("span");
+        more.className = "chip overflow";
+        more.textContent = `+${deltas.length - 2}`;
+        more.title = deltas
+          .slice(2)
+          .map(([key, d]) => `${SHORT[key]} +${Math.round(d * 100)}`)
+          .join(" · ");
+        more.tabIndex = 0;
+        chips.appendChild(more);
       }
     }
 
@@ -500,24 +553,16 @@ function renderScore() {
   els.lcdScore.classList.toggle("hot", band === "alert");
   els.bandWord.textContent = band;
 
-  if (verdict == null) {
+  if (state.current === 0) {
     els.stamp.textContent = "— awaiting —";
     els.stamp.className = "stamp awaiting";
   } else {
-    const label = verdictLabel(verdict);
-    els.stamp.textContent = label;
-    els.stamp.className = `stamp ${label.toLowerCase()}`;
+    els.stamp.textContent = band.toUpperCase();
+    els.stamp.className = `stamp ${band}`;
   }
 
   els.riskValue.textContent = pct(risk);
   els.verdictValue.textContent = verdict == null ? "—" : pct(verdict);
-
-  if (verdict == null) {
-    els.gap.textContent = "";
-  } else {
-    const d = Math.round((verdict - risk) * 100);
-    els.gap.textContent = Math.abs(d) < 1 ? "EVEN" : d > 0 ? `MODEL AHEAD BY ${Math.abs(d)}` : `SIGNALS AHEAD BY ${Math.abs(d)}`;
-  }
 
   const at = alertTurn();
   if (at > 0 && at <= rv) {
@@ -551,6 +596,55 @@ function renderLeds() {
   document.body.classList.toggle("scanning", computing);
 }
 
+function renderComparison() {
+  const box = els.comparisonAxis;
+  box.innerHTML = "";
+
+  ["clear", "watch", "alert"].forEach((z) => {
+    const d = document.createElement("div");
+    d.className = `cmp-zone ${z}`;
+    box.appendChild(d);
+  });
+
+  const ticks = [];
+  scenarios.forEach((s, i) => {
+    if (state.results[s.name] != null) {
+      ticks.push({
+        short: SCENARIO_SHORT[s.name] || s.name,
+        score: state.results[s.name],
+        index: i,
+        current: state.source === "preset" && state.name === s.name,
+      });
+    }
+  });
+  if (state.results["Custom"] != null) {
+    ticks.push({ short: "custom", score: state.results["Custom"], index: -1, current: state.source === "custom" });
+  }
+
+  const tickBox = document.createElement("div");
+  tickBox.className = "cmp-ticks";
+  ticks.forEach((t) => {
+    const tick = document.createElement("button");
+    tick.className = "cmp-tick" + (t.current ? " current" : "");
+    tick.style.left = `${Math.max(1, Math.min(99, t.score * 100))}%`;
+    tick.textContent = t.short;
+    tick.title = t.index >= 0 ? scenarios[t.index].name : "Custom";
+    tick.addEventListener("click", () => {
+      if (t.index >= 0) loadScenario(t.index);
+      else selectCustomRow();
+    });
+    tickBox.appendChild(tick);
+  });
+  box.appendChild(tickBox);
+
+  if (state.current > 0 && !state.completed) {
+    const live = document.createElement("div");
+    live.className = "cmp-live";
+    live.style.left = `${Math.max(0, Math.min(100, curSnap().riskScore * 100))}%`;
+    box.appendChild(live);
+  }
+}
+
 function renderTimeline() {
   const N = state.lines.length;
   if (N === 0) {
@@ -565,7 +659,22 @@ function renderTimeline() {
   const x = (k) => (N <= 1 ? W / 2 : padX + ((k - 1) / (N - 1)) * (W - 2 * padX));
   const y = (v) => padY + (1 - v) * (H - 2 * padY);
 
+  const yTop = y(1);
+  const yAlert = y(0.7);
+  const yWatch = y(0.3);
+  const yBot = y(0);
+
   const parts = [];
+  const bands = [
+    { cls: "band-clear", y: yWatch, h: yBot - yWatch },
+    { cls: "band-watch", y: yAlert, h: yWatch - yAlert },
+    { cls: "band-alert", y: yTop, h: yAlert - yTop },
+  ];
+  for (const b of bands) {
+    parts.push(
+      `<rect x="${padX}" y="${b.y.toFixed(1)}" width="${(W - 2 * padX).toFixed(1)}" height="${b.h.toFixed(1)}" class="${b.cls}"/>`,
+    );
+  }
   parts.push(`<line x1="${padX}" y1="${y(0.7)}" x2="${W - padX}" y2="${y(0.7)}" class="th alert"/>`);
   parts.push(`<line x1="${padX}" y1="${y(0.3)}" x2="${W - padX}" y2="${y(0.3)}" class="th watch"/>`);
 
@@ -591,7 +700,12 @@ function renderTimeline() {
     parts.push(`<line x1="${x(state.current)}" y1="${padY}" x2="${x(state.current)}" y2="${H - padY}" class="playhead"/>`);
   }
 
-  els.timeline.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="timeline-svg" role="img" aria-label="Score timeline">${parts.join("")}</svg>`;
+  const labelTop = (cy) => `${((cy / H) * 100).toFixed(1)}%`;
+  const labels = `<span class="band-label" style="top:${labelTop((yTop + yAlert) / 2)}">alert</span>` +
+    `<span class="band-label" style="top:${labelTop((yAlert + yWatch) / 2)}">watch</span>` +
+    `<span class="band-label" style="top:${labelTop((yWatch + yBot) / 2)}">clear</span>`;
+
+  els.timeline.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="timeline-svg" role="img" aria-label="Score timeline">${parts.join("")}</svg>${labels}`;
   const svg = els.timeline.querySelector("svg");
   svg.addEventListener("click", (e) => {
     const r = svg.getBoundingClientRect();
@@ -629,16 +743,21 @@ function renderMeters() {
   let order = SIGNALS.slice();
   if (state.sort) order.sort((a, b) => cur[b[0]] - cur[a[0]]);
 
+  const fired = order.filter(([key]) => cur[key] >= WATCH).length;
+  els.signalCount.textContent = `signals · ${fired} of ${SIGNALS.length} fired`;
+  els.signalSub.textContent = fired === 0 ? "nothing suspicious yet" : "";
+
   els.meters.innerHTML = "";
   for (const [key, label] of order) {
     const v = cur[key];
     const row = document.createElement("div");
     row.className = "meter-row";
-    if (v < 0.1) row.classList.add("dim");
+    if (v < WATCH) row.classList.add("dim");
 
     const name = document.createElement("span");
     name.className = "meter-name";
     name.textContent = label.toLowerCase();
+    name.title = DESCRIPTIONS[key];
 
     const track = document.createElement("span");
     track.className = "meter-track";
@@ -661,6 +780,27 @@ function renderMeters() {
     val.textContent = `${pad(Math.round(v * 100))}%`;
 
     row.append(name, track, val);
+
+    if (v >= WATCH) {
+      row.classList.add("expanded");
+      const detail = document.createElement("div");
+      detail.className = "meter-detail";
+      const desc = document.createElement("span");
+      desc.className = "meter-desc";
+      desc.textContent = DESCRIPTIONS[key];
+      detail.appendChild(desc);
+      const ev = evidenceFor(key);
+      if (ev) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "meter-evidence";
+        btn.textContent = `"${ev.text}" · T${pad(ev.turn)}`;
+        btn.title = `seek to turn ${ev.turn}`;
+        btn.addEventListener("click", () => goTo(ev.turn));
+        detail.appendChild(btn);
+      }
+      row.appendChild(detail);
+    }
 
     const d = v - prev[key];
     if (state.flashTurn === state.current && state.current > 0 && d >= 0.05) {
@@ -702,6 +842,7 @@ function renderHeatmap() {
     const name = document.createElement("span");
     name.className = "heat-label";
     name.textContent = label.toLowerCase();
+    name.title = DESCRIPTIONS[key];
     row.appendChild(name);
     for (let k = 1; k <= N; k++) {
       const cell = document.createElement("button");
@@ -725,15 +866,16 @@ function renderContribution() {
   els.contribLegend.innerHTML = "";
   const s = curSnap();
   const risk = state.current > 0 ? s.riskScore : 0;
+  els.contribLabel.textContent = risk > 0 ? `what makes up the ${Math.round(risk * 100)}` : "contribution";
   if (risk <= 0) return;
   const sig = state.current > 0 ? s.signals : zeroSignals();
   const order = SIGNALS.slice().sort(
     (a, b) => WEIGHTS[b[0]] * sig[b[0]] - WEIGHTS[a[0]] * sig[a[0]],
   );
-  SIGNALS.forEach(([key], i) => {
+  for (const [key] of order) {
     const contrib = WEIGHTS[key] * sig[key];
-    if (contrib < 0.005) return;
-    const color = sig[key] >= 0.7 ? "#ff5a1f" : NEUTRALS[i % NEUTRALS.length];
+    if (contrib < 0.005) continue;
+    const color = sig[key] >= 0.7 ? "#ff5a1f" : NEUTRALS[SIGNALS.findIndex(([k]) => k === key) % NEUTRALS.length];
     const seg = document.createElement("span");
     seg.className = "contrib-seg";
     seg.style.width = `${contrib * 100}%`;
@@ -748,8 +890,7 @@ function renderContribution() {
     swatch.style.background = color;
     li.append(swatch, document.createTextNode(`${SHORT[key].toLowerCase()} ${Math.round(contrib * 100)}`));
     els.contribLegend.appendChild(li);
-  });
-  void order;
+  }
 }
 
 function renderTransport() {

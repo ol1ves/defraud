@@ -104,21 +104,22 @@
 
         <div id="alert-readout" class="alert-readout pending"></div>
 
+        <div class="comparison">
+          <div class="panel-label">compare runs</div>
+          <div id="comparison-axis" class="comparison-axis"></div>
+        </div>
+
         <div class="verdict-area">
-          <div class="stamp-col">
-            <span class="stamp-src">model</span>
-            <div id="stamp" class="stamp awaiting">— awaiting —</div>
-          </div>
+          <div id="stamp" class="stamp awaiting">— awaiting —</div>
           <div class="readings">
             <div class="reading">
               <span class="reading-label">signals</span>
               <span id="risk-value" class="reading-value">00%</span>
             </div>
-            <div class="reading">
-              <span class="reading-label">model</span>
-              <span id="verdict-value" class="reading-value">—</span>
+            <div class="reading reading-model">
+              <span class="reading-label">jev yes/no check</span>
+              <span id="verdict-value" class="reading-value model">—</span>
             </div>
-            <div id="gap" class="gap"></div>
           </div>
         </div>
 
@@ -135,7 +136,10 @@
 
         <div class="block">
           <div class="meter-head">
-            <span class="panel-label">signals</span>
+            <div class="meter-head-left">
+              <span id="signal-count" class="panel-label">signals</span>
+              <span id="signal-sub" class="signal-sub"></span>
+            </div>
             <div class="meter-toggles">
               <button id="sort-toggle" class="key light small">sort</button>
               <button id="view-toggle" class="key light small">dist</button>
@@ -146,7 +150,7 @@
         </div>
 
         <div class="block">
-          <div class="panel-label">contribution</div>
+          <div class="panel-label" id="contrib-label">contribution</div>
           <div class="contrib-bar"><div id="contrib-segments" class="contrib-segments"></div></div>
           <div id="contrib-legend" class="contrib-legend"></div>
         </div>
