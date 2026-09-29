@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fraud Detector — Jev</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff5c28'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='13' font-weight='700' fill='white' text-anchor='middle'%3EFD%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">FD</span>
+        <h1>Fraud Detector</h1>
+        <span class="tag">powered by Jev</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel transcript-panel">
+        <div class="panel-head">
+          <h2>Transcript</h2>
+          <span id="progress" class="muted">0 / 0</span>
+        </div>
+        <div class="controls">
+          <button id="play-btn" class="btn primary">Play</button>
+          <button id="step-btn" class="btn">Step</button>
+          <button id="end-btn" class="btn">Jump to end</button>
+          <button id="reset-btn" class="btn">Reset</button>
+          <label class="interval">
+            <span>Interval ms</span>
+            <input id="interval-input" type="number" value="1500" min="100" step="100" />
+          </label>
+        </div>
+        <div id="transcript" class="transcript"></div>
+      </section>
+
+      <section class="panel score-panel">
+        <div class="panel-head">
+          <h2>Score</h2>
+        </div>
+        <div class="risk-wrap">
+          <div id="risk-score" class="risk-score">0%</div>
+          <div class="risk-label">composed risk score</div>
+        </div>
+        <div class="verdict-wrap">
+          <span class="verdict-label">Direct model verdict</span>
+          <span id="verdict" class="verdict-value">—</span>
+        </div>
+        <div id="signals" class="signals"></div>
+      </section>
+    </main>
+
+    <section class="panel input-panel">
+      <div class="panel-head">
+        <h2>Scenario</h2>
+      </div>
+      <div class="scenario-row">
+        <select id="scenario-select"></select>
+      </div>
+      <div class="custom">
+        <textarea
+          id="custom-input"
+          rows="6"
+          placeholder="Paste your own transcript, one turn per line:&#10;Caller: This is the bank.&#10;Callee: Hello?"
+        ></textarea>
+        <div class="custom-actions">
+          <button id="custom-btn" class="btn">Use custom transcript</button>
+          <span id="custom-status" class="muted"></span>
+        </div>
+      </div>
+    </section>
+
+    <div id="error-banner" class="error-banner" hidden></div>
+
+    <script src="/scenarios.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
