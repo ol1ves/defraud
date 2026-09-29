@@ -512,15 +512,18 @@ function renderScore() {
 }
 
 function renderLeds() {
+  const N = state.lines.length;
+  const computing = N > 0 && state.history.slice(1).some((h) => !h);
   const status =
-    state.playing || (state.current > 0 && !state.history[state.current])
-      ? "live"
-      : state.current === state.lines.length && state.lines.length > 0
-        ? "done"
+    N > 0 && state.current === N && !computing
+      ? "done"
+      : state.playing || computing
+        ? "live"
         : "idle";
   document.querySelectorAll(".led-led").forEach((el) => {
     el.classList.toggle("on", el.dataset.led === status);
   });
+  document.body.classList.toggle("scanning", computing);
 }
 
 function renderTimeline() {
