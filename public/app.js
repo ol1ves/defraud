@@ -45,6 +45,7 @@ const els = {
   loadedStrip: document.getElementById("loaded-strip"),
   minimap: document.getElementById("minimap"),
   counter: document.getElementById("counter"),
+  reviewBadge: document.getElementById("review-badge"),
   transcript: document.getElementById("transcript"),
   keyPlay: document.getElementById("key-play"),
   keyPlayIcon: document.getElementById("key-play-icon"),
@@ -80,6 +81,7 @@ const state = {
   lines: [],
   history: [],
   current: 0,
+  completed: false,
   playing: false,
   timer: null,
   speed: 1,
@@ -100,6 +102,7 @@ const snap = (k) => state.history[k] || snapshot0();
 const curSnap = () => snap(state.current);
 const bandOf = (r) => (r >= 0.7 ? "alert" : r >= 0.3 ? "watch" : "clear");
 const verdictLabel = (v) => (v >= 0.7 ? "SCAM" : v >= 0.3 ? "SUSPECT" : "CLEAR");
+const reveal = () => (state.completed ? state.lines.length : state.current);
 
 function alertTurn() {
   for (let k = 1; k <= state.lines.length; k++) {
@@ -107,6 +110,17 @@ function alertTurn() {
     if (h && h.riskScore >= 0.7) return k;
   }
   return 0;
+}
+
+function lerpColor(a, b, t) {
+  const c = a.map((x, i) => Math.round(x + (b[i] - x) * t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// Light grey -> ink below the alert threshold, ink -> orange above it.
+function heatColor(v) {
+  if (v >= 0.7) return lerpColor([10, 10, 10], [255, 90, 31], Math.min(1, (v - 0.7) / 0.3));
+  return lerpColor([230, 230, 227], [10, 10, 10], Math.min(1, v / 0.7));
 }
 
 /* ---------------- API ---------------- */
@@ -129,6 +143,7 @@ async function analyze(lines) {
 
 function resetForLoad() {
   state.current = 0;
+  state.completed = false;
   state.flashTurn = null;
   state.sort = false;
   state.history = new Array(state.lines.length + 1).fill(null);
@@ -165,10 +180,11 @@ async function goTo(k, opts = {}) {
     await computeTurn(k, state.gen);
   }
   state.current = k;
-  state.flashTurn = flash ? k : null;
-  if (k === state.lines.length && state.history[k]) {
-    state.results[state.name] = state.history[k].riskScore;
+  if (k === state.lines.length) {
+    state.completed = true;
+    if (state.history[k]) state.results[state.name] = state.history[k].riskScore;
   }
+  state.flashTurn = flash ? k : null;
   render();
   if (flash) {
     const ft = k;
@@ -176,7 +192,7 @@ async function goTo(k, opts = {}) {
       if (state.flashTurn === ft) state.flashTurn = null;
       const el = els.transcript.querySelector(`.turn-row[data-turn="${ft}"]`);
       if (el) el.classList.remove("flash");
-    }, 380);
+    }, 250);
   }
 }
 
@@ -186,6 +202,7 @@ function playPause() {
     return;
   }
   if (state.current >= state.lines.length) {
+    state.completed = false;
     goTo(0, { flash: false });
   }
   state.playing = true;
@@ -227,6 +244,7 @@ function jumpEnd() {
 
 function resetAll() {
   if (state.playing) stop();
+  state.completed = false;
   goTo(0, { flash: false });
 }
 
@@ -340,7 +358,10 @@ function renderScenarios() {
   const customRow = document.createElement("li");
   customRow.className = "scenario-row";
   if (state.customOpen) customRow.classList.add("selected");
-  customRow.append(scenarioName("custom"), scenarioRight(state.source === "custom" ? state.lines.length : 0, state.results["Custom"]));
+  customRow.append(
+    scenarioName("custom"),
+    scenarioRight(state.source === "custom" ? state.lines.length : 0, state.results["Custom"]),
+  );
   customRow.addEventListener("click", selectCustomRow);
   els.scenarioList.appendChild(customRow);
 }
@@ -362,7 +383,7 @@ function scenarioRight(turns, score) {
   if (score != null) {
     const s = document.createElement("span");
     s.className = "scenario-score";
-    s.textContent = pct(score);
+    s.textContent = `LAST ${pct(score)}`;
     wrap.appendChild(s);
   }
   return wrap;
@@ -377,13 +398,13 @@ function renderLoadedStrip() {
 function renderMinimap() {
   els.minimap.innerHTML = "";
   const N = state.lines.length;
+  const rv = reveal();
   for (let k = 1; k <= N; k++) {
     const cell = document.createElement("button");
     cell.className = "mini-cell";
     const h = state.history[k];
-    if (h) {
-      const v = h.riskScore;
-      cell.style.background = v >= 0.7 ? `rgba(255,90,31,${0.25 + 0.75 * v})` : `rgba(10,10,10,${0.15 + 0.85 * v})`;
+    if (h && k <= rv) {
+      cell.style.background = heatColor(h.riskScore);
     }
     if (k === state.current) cell.classList.add("active");
     cell.setAttribute("aria-label", `seek to turn ${k}`);
@@ -391,6 +412,7 @@ function renderMinimap() {
     els.minimap.appendChild(cell);
   }
   els.counter.textContent = `${pad(state.current)}/${pad(N)}`;
+  els.reviewBadge.hidden = !state.completed;
 }
 
 function renderTranscript() {
@@ -398,6 +420,7 @@ function renderTranscript() {
   box.innerHTML = "";
   const at = alertTurn();
   const N = state.lines.length;
+  const rv = reveal();
   for (let k = 1; k <= N; k++) {
     const line = state.lines[k - 1];
     const h = snap(k);
@@ -408,13 +431,15 @@ function renderTranscript() {
     if (k > state.current) row.classList.add("future");
     else if (k === state.current) row.classList.add("current");
     else row.classList.add("past");
-    if (k === at) row.classList.add("alert");
+    if (k === at && k <= rv) row.classList.add("alert");
     if (k === state.flashTurn) row.classList.add("flash");
 
-    const heat = document.createElement("div");
-    heat.className = "heat";
-    const riskDelta = h.riskScore - prev.riskScore;
-    heat.style.setProperty("--heat", riskDelta > 0.01 ? String(Math.min(1, riskDelta / 0.3)) : "0");
+    let heatVal = 0;
+    if (k <= rv) {
+      const riskDelta = h.riskScore - prev.riskScore;
+      heatVal = riskDelta > 0.01 ? Math.min(1, riskDelta / 0.5) : 0;
+    }
+    row.style.setProperty("--heat", String(heatVal));
 
     const lineNo = document.createElement("div");
     lineNo.className = "line-no";
@@ -430,20 +455,22 @@ function renderTranscript() {
 
     const chips = document.createElement("div");
     chips.className = "chips";
-    const deltas = [];
-    for (const [key] of SIGNALS) {
-      const d = h.signals[key] - prev.signals[key];
-      if (d >= 0.15) deltas.push([key, d]);
-    }
-    deltas.sort((a, b) => b[1] - a[1]);
-    for (const [key, d] of deltas.slice(0, 3)) {
-      const c = document.createElement("span");
-      c.className = "chip";
-      c.textContent = `${SHORT[key]} +${Math.round(d * 100)}`;
-      chips.appendChild(c);
+    if (k <= rv) {
+      const deltas = [];
+      for (const [key] of SIGNALS) {
+        const d = h.signals[key] - prev.signals[key];
+        if (d >= 0.15) deltas.push([key, d]);
+      }
+      deltas.sort((a, b) => b[1] - a[1]);
+      for (const [key, d] of deltas.slice(0, 3)) {
+        const c = document.createElement("span");
+        c.className = "chip";
+        c.textContent = `${SHORT[key]} +${Math.round(d * 100)}`;
+        chips.appendChild(c);
+      }
     }
 
-    row.append(heat, lineNo, speaker, text, chips);
+    row.append(lineNo, speaker, text, chips);
     row.tabIndex = 0;
     row.addEventListener("click", () => goTo(k));
     row.addEventListener("keydown", (e) => {
@@ -467,8 +494,9 @@ function renderScore() {
   const risk = state.current > 0 ? s.riskScore : 0;
   const verdict = state.current > 0 ? s.verdict : null;
   const band = bandOf(risk);
+  const rv = reveal();
 
-  els.lcdScore.textContent = pad(Math.round(risk * 100), 3);
+  els.lcdScore.textContent = String(Math.round(risk * 100)).padStart(3, " ");
   els.lcdScore.classList.toggle("hot", band === "alert");
   els.bandWord.textContent = band;
 
@@ -492,22 +520,19 @@ function renderScore() {
   }
 
   const at = alertTurn();
-  if (at) {
-    els.alertReadout.hidden = false;
+  if (at > 0 && at <= rv) {
+    els.alertReadout.className = "alert-readout fired";
     els.alertReadout.innerHTML = `<span class="alert-big">ALERT @ TURN ${pad(at)}</span><span class="alert-sub">we would have warned the victim here</span>`;
   } else {
-    els.alertReadout.hidden = true;
+    els.alertReadout.className = "alert-readout pending";
+    els.alertReadout.innerHTML = `<span class="alert-big">no alert yet</span><span class="alert-sub">keep watching the call</span>`;
   }
 
   renderLeds();
 
   if (state.current > 0) {
     const announce = `${Math.round(risk * 100)} percent risk, ${band} band`;
-    if (at && state.current >= at) {
-      els.ariaLive.textContent = `${announce}, alert at turn ${at}`;
-    } else {
-      els.ariaLive.textContent = announce;
-    }
+    els.ariaLive.textContent = at > 0 && at <= rv ? `${announce}, alert at turn ${at}` : announce;
   }
 }
 
@@ -532,8 +557,9 @@ function renderTimeline() {
     els.timeline.innerHTML = "";
     return;
   }
+  const rv = reveal();
   const W = 320;
-  const H = 132;
+  const H = 128;
   const padX = 20;
   const padY = 12;
   const x = (k) => (N <= 1 ? W / 2 : padX + ((k - 1) / (N - 1)) * (W - 2 * padX));
@@ -545,7 +571,7 @@ function renderTimeline() {
 
   const cPts = [];
   const vPts = [];
-  for (let k = 1; k <= N; k++) {
+  for (let k = 1; k <= rv; k++) {
     const h = state.history[k];
     if (!h) continue;
     cPts.push(`${x(k).toFixed(1)},${y(h.riskScore).toFixed(1)}`);
@@ -553,12 +579,12 @@ function renderTimeline() {
   }
   if (cPts.length) parts.push(`<polyline points="${cPts.join(" ")}" class="line composed"/>`);
   if (vPts.length) parts.push(`<polyline points="${vPts.join(" ")}" class="line verdict"/>`);
-  for (let k = 1; k <= N; k++) {
+  for (let k = 1; k <= rv; k++) {
     const h = state.history[k];
     if (h) parts.push(`<circle cx="${x(k)}" cy="${y(h.riskScore)}" r="2" class="dot"/>`);
   }
   const at = alertTurn();
-  if (at && state.history[at]) {
+  if (at > 0 && at <= rv && state.history[at]) {
     parts.push(`<circle cx="${x(at)}" cy="${y(state.history[at].riskScore)}" r="3.5" class="alert-dot"/>`);
   }
   if (state.current > 0) {
@@ -652,6 +678,7 @@ function renderHeatmap() {
   const N = state.lines.length;
   els.heatmap.innerHTML = "";
   if (N === 0) return;
+  const rv = reveal();
 
   const head = document.createElement("div");
   head.className = "heat-row heat-head";
@@ -674,19 +701,18 @@ function renderHeatmap() {
     row.style.setProperty("--n", N);
     const name = document.createElement("span");
     name.className = "heat-label";
-    name.textContent = SHORT[key].toLowerCase();
+    name.textContent = label.toLowerCase();
     row.appendChild(name);
     for (let k = 1; k <= N; k++) {
       const cell = document.createElement("button");
       cell.type = "button";
       cell.className = "heat-cell";
       const h = state.history[k];
-      if (h) {
-        const v = h.signals[key];
-        cell.style.background = v >= 0.7 ? `rgba(255,90,31,${0.25 + 0.75 * v})` : `rgba(10,10,10,${0.06 + 0.9 * v})`;
+      if (h && k <= rv) {
+        cell.style.background = heatColor(h.signals[key]);
       }
       if (k === state.current) cell.classList.add("active");
-      cell.setAttribute("aria-label", `${SHORT[key].toLowerCase()} at turn ${k}`);
+      cell.setAttribute("aria-label", `${label.toLowerCase()} at turn ${k}`);
       cell.addEventListener("click", () => goTo(k));
       row.appendChild(cell);
     }
@@ -707,16 +733,20 @@ function renderContribution() {
   SIGNALS.forEach(([key], i) => {
     const contrib = WEIGHTS[key] * sig[key];
     if (contrib < 0.005) return;
+    const color = sig[key] >= 0.7 ? "#ff5a1f" : NEUTRALS[i % NEUTRALS.length];
     const seg = document.createElement("span");
     seg.className = "contrib-seg";
     seg.style.width = `${contrib * 100}%`;
-    seg.style.background = sig[key] >= 0.7 ? "#ff5a1f" : NEUTRALS[i % NEUTRALS.length];
+    seg.style.background = color;
     seg.title = `${SHORT[key]} ${Math.round(contrib * 100)}`;
     els.contribSegments.appendChild(seg);
 
     const li = document.createElement("span");
     li.className = "contrib-legend-item";
-    li.textContent = `${SHORT[key].toLowerCase()} ${Math.round(contrib * 100)}`;
+    const swatch = document.createElement("span");
+    swatch.className = "contrib-swatch";
+    swatch.style.background = color;
+    li.append(swatch, document.createTextNode(`${SHORT[key].toLowerCase()} ${Math.round(contrib * 100)}`));
     els.contribLegend.appendChild(li);
   });
   void order;
@@ -729,6 +759,8 @@ function renderTransport() {
   els.led.classList.toggle("on", state.playing);
   els.keySpeed.textContent = `${state.speed}×`;
   els.viewToggle.textContent = state.view === "meters" ? "dist" : "meters";
+  els.sortToggle.classList.toggle("on", state.sort);
+  els.viewToggle.classList.toggle("on", state.view === "dist");
 }
 
 /* ---------------- init ---------------- */

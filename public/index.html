@@ -18,7 +18,7 @@
           <rect width="34" height="34" fill="#0A0A0A" />
           <rect width="15" height="15" fill="#FFFFFF" />
         </svg>
-        <h1 class="title"><span>fraud</span><span class="slash">/</span><span>detector</span></h1>
+        <h1 class="title"><span class="t-line">fraud<span class="slash">/</span></span><span class="t-line">detector</span></h1>
         <span class="powered">powered by jev</span>
       </div>
       <div class="microtext">詐欺探知機</div>
@@ -31,18 +31,19 @@
         <div id="custom-panel" class="custom" hidden>
           <textarea id="custom-input" class="custom-input" rows="5" placeholder="Caller: This is the bank.&#10;Callee: Hello?"></textarea>
           <div id="custom-preview" class="custom-preview">0 turns parsed</div>
-          <button id="custom-load" class="key dark full" disabled>load</button>
+          <button id="custom-load" class="key dark full" disabled>LOAD</button>
         </div>
       </aside>
 
       <section class="transcript-col">
         <div class="col-head">
-          <h2 class="display-headline">scam or not.</h2>
+          <h2 class="display-headline">defraud</h2>
         </div>
         <div id="loaded-strip" class="loaded-strip"></div>
         <div class="minimap-row">
           <div id="minimap" class="minimap" aria-label="turn progress"></div>
-          <div id="counter" class="counter seg">00/00</div>
+          <div id="review-badge" class="review-badge" hidden>review</div>
+          <div id="counter" class="counter">00/15</div>
         </div>
         <div id="transcript" class="transcript" aria-label="call transcript"></div>
         <div class="transport" role="toolbar" aria-label="Playback controls">
@@ -52,39 +53,47 @@
               <span id="led" class="led"></span>
               <button id="key-play" class="key orange" aria-label="Play or pause"><span id="key-play-icon">▶</span></button>
             </div>
+            <span class="key-hint">space</span>
           </div>
           <div class="key-wrap">
             <span class="key-label">step back</span>
-            <button id="key-back" class="key dark" aria-label="Step back">◀</button>
+            <button id="key-back" class="key dark" aria-label="Step back">◀|</button>
+            <span class="key-hint">←</span>
           </div>
           <div class="key-wrap">
             <span class="key-label">step fwd</span>
-            <button id="key-fwd" class="key dark" aria-label="Step forward">▶</button>
+            <button id="key-fwd" class="key dark" aria-label="Step forward">|▶</button>
+            <span class="key-hint">→</span>
           </div>
           <div class="key-wrap">
             <span class="key-label">jump to end</span>
             <button id="key-end" class="key dark" aria-label="Jump to end">▶▶</button>
+            <span class="key-hint">end</span>
           </div>
           <div class="key-wrap">
             <span class="key-label">reset</span>
             <button id="key-reset" class="key light" aria-label="Reset">■</button>
+            <span class="key-hint">home</span>
           </div>
-          <div class="key-wrap speed-wrap">
+          <div class="key-wrap">
             <span class="key-label">speed</span>
-            <button id="key-speed" class="key light small">1×</button>
+            <button id="key-speed" class="key light">1×</button>
+            <span class="key-hint">click</span>
           </div>
         </div>
-        <div class="key-hints">space · ← → · home · end</div>
       </section>
 
       <aside class="score-col">
         <div class="lcd-module">
           <div class="lcd">
-            <span class="lcd-ghost seg">888</span>
-            <span id="lcd-score" class="lcd-score seg">000</span>
+            <span class="lcd-ghost">888</span>
+            <span id="lcd-score" class="lcd-score">000</span>
           </div>
           <div class="band-line">
-            <span id="band-word" class="band-word">clear</span>
+            <span class="band-left">
+              <span class="band-src">signals</span>
+              <span id="band-word" class="band-word">clear</span>
+            </span>
             <span class="leds" aria-hidden="true">
               <span class="led-led" data-led="idle">idle</span>
               <span class="led-led" data-led="live">live</span>
@@ -93,17 +102,20 @@
           </div>
         </div>
 
-        <div id="alert-readout" class="alert-readout" hidden></div>
+        <div id="alert-readout" class="alert-readout pending"></div>
 
         <div class="verdict-area">
-          <div id="stamp" class="stamp awaiting">— awaiting —</div>
+          <div class="stamp-col">
+            <span class="stamp-src">model</span>
+            <div id="stamp" class="stamp awaiting">— awaiting —</div>
+          </div>
           <div class="readings">
             <div class="reading">
-              <span class="reading-label">signals (explainable)</span>
+              <span class="reading-label">signals</span>
               <span id="risk-value" class="reading-value">00%</span>
             </div>
             <div class="reading">
-              <span class="reading-label">model (holistic)</span>
+              <span class="reading-label">model</span>
               <span id="verdict-value" class="reading-value">—</span>
             </div>
             <div id="gap" class="gap"></div>
@@ -113,6 +125,12 @@
         <div class="block">
           <div class="panel-label">score timeline</div>
           <div id="timeline" class="timeline"></div>
+          <div class="timeline-legend">
+            <span class="legend-item"><span class="legend-line solid"></span>signals</span>
+            <span class="legend-item"><span class="legend-line dashed"></span>model</span>
+            <span class="legend-item">30 watch</span>
+            <span class="legend-item">70 alert</span>
+          </div>
         </div>
 
         <div class="block">
