@@ -4,74 +4,139 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fraud Detector — Jev</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff5c28'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='13' font-weight='700' fill='white' text-anchor='middle'%3EFD%3C/text%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Crect width='14' height='14' fill='white'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter+Tight:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dseg@0.46.0/css/dseg.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark">FD</span>
-        <h1>Fraud Detector</h1>
-        <span class="tag">powered by Jev</span>
+        <svg class="brand-mark" viewBox="0 0 34 34" aria-hidden="true">
+          <rect width="34" height="34" fill="#0A0A0A" />
+          <rect width="15" height="15" fill="#FFFFFF" />
+        </svg>
+        <h1 class="title"><span>fraud</span><span class="slash">/</span><span>detector</span></h1>
+        <span class="powered">powered by jev</span>
       </div>
+      <div class="microtext">詐欺探知機</div>
     </header>
 
     <main class="layout">
-      <section class="panel transcript-panel">
-        <div class="panel-head">
-          <h2>Transcript</h2>
-          <span id="progress" class="muted">0 / 0</span>
+      <aside class="scenario-rail">
+        <h2 class="rail-title">scenario</h2>
+        <ul id="scenario-list" class="scenario-list"></ul>
+        <div id="custom-panel" class="custom" hidden>
+          <textarea id="custom-input" class="custom-input" rows="5" placeholder="Caller: This is the bank.&#10;Callee: Hello?"></textarea>
+          <div id="custom-preview" class="custom-preview">0 turns parsed</div>
+          <button id="custom-load" class="key dark full" disabled>load</button>
         </div>
-        <div class="controls">
-          <button id="play-btn" class="btn primary">Play</button>
-          <button id="step-btn" class="btn">Step</button>
-          <button id="end-btn" class="btn">Jump to end</button>
-          <button id="reset-btn" class="btn">Reset</button>
-          <label class="interval">
-            <span>Interval ms</span>
-            <input id="interval-input" type="number" value="1500" min="100" step="100" />
-          </label>
+      </aside>
+
+      <section class="transcript-col">
+        <div class="col-head">
+          <h2 class="display-headline">scam or not.</h2>
         </div>
-        <div id="transcript" class="transcript"></div>
+        <div id="loaded-strip" class="loaded-strip"></div>
+        <div class="minimap-row">
+          <div id="minimap" class="minimap" aria-label="turn progress"></div>
+          <div id="counter" class="counter seg">00/00</div>
+        </div>
+        <div id="transcript" class="transcript" aria-label="call transcript"></div>
+        <div class="transport" role="toolbar" aria-label="Playback controls">
+          <div class="key-wrap">
+            <span class="key-label" id="key-play-label">play</span>
+            <div class="key-row">
+              <span id="led" class="led"></span>
+              <button id="key-play" class="key orange" aria-label="Play or pause"><span id="key-play-icon">▶</span></button>
+            </div>
+          </div>
+          <div class="key-wrap">
+            <span class="key-label">step back</span>
+            <button id="key-back" class="key dark" aria-label="Step back">◀</button>
+          </div>
+          <div class="key-wrap">
+            <span class="key-label">step fwd</span>
+            <button id="key-fwd" class="key dark" aria-label="Step forward">▶</button>
+          </div>
+          <div class="key-wrap">
+            <span class="key-label">jump to end</span>
+            <button id="key-end" class="key dark" aria-label="Jump to end">▶▶</button>
+          </div>
+          <div class="key-wrap">
+            <span class="key-label">reset</span>
+            <button id="key-reset" class="key light" aria-label="Reset">■</button>
+          </div>
+          <div class="key-wrap speed-wrap">
+            <span class="key-label">speed</span>
+            <button id="key-speed" class="key light small">1×</button>
+          </div>
+        </div>
+        <div class="key-hints">space · ← → · home · end</div>
       </section>
 
-      <section class="panel score-panel">
-        <div class="panel-head">
-          <h2>Score</h2>
+      <aside class="score-col">
+        <div class="lcd-module">
+          <div class="lcd">
+            <span class="lcd-ghost seg">888</span>
+            <span id="lcd-score" class="lcd-score seg">000</span>
+          </div>
+          <div class="band-line">
+            <span id="band-word" class="band-word">clear</span>
+            <span class="leds" aria-hidden="true">
+              <span class="led-led" data-led="idle">idle</span>
+              <span class="led-led" data-led="live">live</span>
+              <span class="led-led" data-led="done">done</span>
+            </span>
+          </div>
         </div>
-        <div class="risk-wrap">
-          <div id="risk-score" class="risk-score">0%</div>
-          <div class="risk-label">composed risk score</div>
+
+        <div id="alert-readout" class="alert-readout" hidden></div>
+
+        <div class="verdict-area">
+          <div id="stamp" class="stamp awaiting">— awaiting —</div>
+          <div class="readings">
+            <div class="reading">
+              <span class="reading-label">signals (explainable)</span>
+              <span id="risk-value" class="reading-value">00%</span>
+            </div>
+            <div class="reading">
+              <span class="reading-label">model (holistic)</span>
+              <span id="verdict-value" class="reading-value">—</span>
+            </div>
+            <div id="gap" class="gap"></div>
+          </div>
         </div>
-        <div class="verdict-wrap">
-          <span class="verdict-label">Direct model verdict</span>
-          <span id="verdict" class="verdict-value">—</span>
+
+        <div class="block">
+          <div class="panel-label">score timeline</div>
+          <div id="timeline" class="timeline"></div>
         </div>
-        <div id="signals" class="signals"></div>
-      </section>
+
+        <div class="block">
+          <div class="meter-head">
+            <span class="panel-label">signals</span>
+            <div class="meter-toggles">
+              <button id="sort-toggle" class="key light small">sort</button>
+              <button id="view-toggle" class="key light small">dist</button>
+            </div>
+          </div>
+          <div id="meters" class="meters"></div>
+          <div id="heatmap" class="heatmap" hidden></div>
+        </div>
+
+        <div class="block">
+          <div class="panel-label">contribution</div>
+          <div class="contrib-bar"><div id="contrib-segments" class="contrib-segments"></div></div>
+          <div id="contrib-legend" class="contrib-legend"></div>
+        </div>
+      </aside>
     </main>
 
-    <section class="panel input-panel">
-      <div class="panel-head">
-        <h2>Scenario</h2>
-      </div>
-      <div class="scenario-row">
-        <select id="scenario-select"></select>
-      </div>
-      <div class="custom">
-        <textarea
-          id="custom-input"
-          rows="6"
-          placeholder="Paste your own transcript, one turn per line:&#10;Caller: This is the bank.&#10;Callee: Hello?"
-        ></textarea>
-        <div class="custom-actions">
-          <button id="custom-btn" class="btn">Use custom transcript</button>
-          <span id="custom-status" class="muted"></span>
-        </div>
-      </div>
-    </section>
-
     <div id="error-banner" class="error-banner" hidden></div>
+    <div id="aria-live" class="sr-only" aria-live="polite"></div>
 
     <script src="/scenarios.js"></script>
     <script src="/app.js"></script>
