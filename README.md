@@ -4,6 +4,8 @@ A small playground that tests [Jev](https://typesafe.ai) on detecting fraudulent
 
 You load a transcript, play it line by line, and watch the fraud risk score move as the call unfolds.
 
+![Fraud Detector playground screenshot](screenshot.png)
+
 ## Stack
 
 - Plain Node `http` server, no framework.
